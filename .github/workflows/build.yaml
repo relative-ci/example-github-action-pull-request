@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
 
       - uses: actions/setup-node@v3
         with:
@@ -25,11 +23,27 @@ jobs:
       # Build and output webpack stats to artifacts/webpack-stats.json
       - run: npm run build --if-present
 
+      # Read pull request commit message
+      - name: Read pull request commit message
+        id: pull-request-commit-message
+        run: |
+          # Get the pull request commit's SHA/ID from the event data file
+          COMMIT_SHA=$(cat $GITHUB_EVENT_PATH | jq -r ".pull_request.head.sha")
+
+          # Fetch commit data from the GitHub API and pick the commit message value
+          COMMIT_MESSAGE=$(gh api /repos/$GITHUB_REPOSITORY/commits/$COMMIT_SHA --jq .commit.message)
+
+          # Set output
+          echo "commit-message=$COMMIT_MESSAGE" > $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # Send webpack stats and build information to RelativeCI
       - name: Send webpack stats to RelativeCI
         uses: relative-ci/agent-action@v3.0.0-beta
         with:
           webpackStatsFile: ./artifacts/webpack-stats.json
           key: ${{ secrets.RELATIVE_CI_KEY }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          debug: true
+          debug: true 
+        env:
+          RELATIVE_CI_COMMIT_MESSAGE: ${{ steps.pull-request-commit-message.outputs.commit-message }}
